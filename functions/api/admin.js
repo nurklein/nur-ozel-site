@@ -18,18 +18,36 @@ async function sign(value, secret) {
 }
 
 async function verify(value, signature, secret) {
-  return (await sign(value, secret)) === signature;
+  const expected = await sign(value, secret);
+
+  const a = new TextEncoder().encode(expected);
+  const b = new TextEncoder().encode(signature);
+
+  if (a.length !== b.length) return false;
+
+  return crypto.subtle.timingSafeEqual
+    ? crypto.subtle.timingSafeEqual(a, b)
+    : expected === signature;
 }
 
 export async function onRequest({ request, env }) {
   const secret = env.ADMINPASSWORD;
 
   if (!secret) {
-    return new Response("Admin şifresi ayarlanmamış.", { status: 500 });
+    return Response.json(
+      { error: "Admin şifresi ayarlanmamış. Cloudflare ayarlarını kontrol et." },
+      { status: 500 }
+    );
   }
 
   if (request.method === "POST") {
-    const body = await request.json();
+    let body;
+
+    try {
+      body = await request.json();
+    } catch {
+      return Response.json({ error: "Geçersiz istek." }, { status: 400 });
+    }
 
     if (body.username !== "admin" || body.password !== secret) {
       return Response.json(
@@ -38,15 +56,14 @@ export async function onRequest({ request, env }) {
       );
     }
 
-    const expires = Date.now() + 8 * 60 * 60 * 1000;
-    const value = String(expires);
-    const signature = await sign(value, secret);
+    const expires = String(Date.now() + 8 * 60 * 60 * 1000);
+    const signature = await sign(expires, secret);
 
     return Response.json(
       { success: true },
       {
         headers: {
-          "Set-Cookie": `admin_session=${value}.${signature}; HttpOnly; Secure; SameSite=Strict; Path=/api/admin; Max-Age=28800`
+          "Set-Cookie": `admin_session=${expires}.${signature}; HttpOnly; Secure; SameSite=Strict; Path=/api/admin; Max-Age=28800`
         }
       }
     );
@@ -57,7 +74,7 @@ export async function onRequest({ request, env }) {
     const match = cookie.match(/admin_session=([^;]+)/);
 
     if (!match) {
-      return Response.json({ error: "Giriş gerekli." }, { status: 401 });
+      return Response.json({ error: "Giriş yapman gerekiyor." }, { status: 401 });
     }
 
     const [expires, signature] = match[1].split(".");
@@ -68,15 +85,23 @@ export async function onRequest({ request, env }) {
       expiry < Date.now() ||
       !(await verify(expires, signature, secret))
     ) {
-      return Response.json({ error: "Oturum geçersiz." }, { status: 401 });
+      return Response.json({ error: "Oturum süresi dolmuş." }, { status: 401 });
     }
 
-    const result = await env.DB.prepare(
-      "SELECT * FROM answers ORDER BY id DESC LIMIT 200"
-    ).all();
+    try {
+      const result = await env.DB.prepare(
+        "SELECT * FROM answers ORDER BY id DESC LIMIT 200"
+      ).all();
 
-    return Response.json({ answers: result.results });
+      return Response.json({ answers: result.results || [] });
+    } catch {
+      return Response.json(
+        { error: "Cevaplar veritabanından alınamadı." },
+        { status: 500 }
+      );
+    }
   }
 
-  return new Response("Method not allowed", { status: 405 });
+  return Response.json({ error: "İzin verilmeyen işlem." }, { status: 405 });
 }
+
