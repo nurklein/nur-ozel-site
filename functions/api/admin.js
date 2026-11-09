@@ -31,7 +31,7 @@ async function verify(value, signature, secret) {
 }
 
 export async function onRequest({ request, env }) {
-  const secret = env.ADMINPASSWORD;
+  const secret = env.adminpass;
 
   if (!secret) {
     return Response.json(
@@ -74,7 +74,10 @@ export async function onRequest({ request, env }) {
     const match = cookie.match(/admin_session=([^;]+)/);
 
     if (!match) {
-      return Response.json({ error: "Giriş yapman gerekiyor." }, { status: 401 });
+      return Response.json(
+        { error: "Giriş yapman gerekiyor." },
+        { status: 401 }
+      );
     }
 
     const [expires, signature] = match[1].split(".");
@@ -85,7 +88,10 @@ export async function onRequest({ request, env }) {
       expiry < Date.now() ||
       !(await verify(expires, signature, secret))
     ) {
-      return Response.json({ error: "Oturum süresi dolmuş." }, { status: 401 });
+      return Response.json(
+        { error: "Oturum süresi dolmuş." },
+        { status: 401 }
+      );
     }
 
     try {
@@ -102,6 +108,8 @@ export async function onRequest({ request, env }) {
     }
   }
 
-  return Response.json({ error: "İzin verilmeyen işlem." }, { status: 405 });
+  return Response.json(
+    { error: "İzin verilmeyen işlem." },
+    { status: 405 }
+  );
 }
-
