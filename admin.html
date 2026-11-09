@@ -1,1 +1,130 @@
 
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Paneli ❤️</title>
+<style>
+*{box-sizing:border-box}
+body{
+ margin:0;min-height:100vh;padding:20px;
+ background:linear-gradient(135deg,#170b18,#3b1732);
+ color:white;font-family:Arial,sans-serif;
+ display:flex;justify-content:center;align-items:center;
+}
+.container{
+ width:100%;max-width:650px;
+ background:#ffffff12;padding:25px;border-radius:20px;
+ border:1px solid #ffffff25;
+}
+h1{text-align:center;color:#ff9fcb}
+input,button{
+ width:100%;padding:14px;margin:8px 0;
+ border:0;border-radius:10px;font-size:16px;
+}
+input{background:#fff;color:#222}
+button{
+ background:#ff70ad;color:white;font-weight:bold;
+ cursor:pointer;
+}
+.answer{
+ background:#ffffff12;padding:14px;
+ border-radius:12px;margin:12px 0;
+}
+small{color:#ffc4df}
+.hidden{display:none}
+#error{color:#ff9c9c;text-align:center}
+</style>
+</head>
+<body>
+<div class="container">
+ <section id="login">
+  <h1>❤️ Admin Girişi</h1>
+  <input id="username" placeholder="Kullanıcı adı" autocomplete="username">
+  <input id="password" type="password" placeholder="Şifre" autocomplete="current-password">
+  <button onclick="login()">Giriş Yap</button>
+  <p id="error"></p>
+ </section>
+
+ <section id="panel" class="hidden">
+  <h1>Gelen Cevaplar 💗</h1>
+  <div id="answers">Yükleniyor...</div>
+  <button onclick="loadAnswers()">Yenile</button>
+  <button onclick="logout()">Çıkış Yap</button>
+ </section>
+</div>
+
+<script>
+async function login(){
+ const username=document.getElementById("username").value;
+ const password=document.getElementById("password").value;
+ const error=document.getElementById("error");
+ error.textContent="Kontrol ediliyor...";
+
+ try{
+  const response=await fetch("/api/admin",{
+   method:"POST",
+   headers:{"Content-Type":"application/json"},
+   body:JSON.stringify({username,password})
+  });
+
+  const data=await response.json();
+  if(!response.ok) throw new Error(data.error||"Giriş başarısız");
+
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("panel").classList.remove("hidden");
+  document.getElementById("password").value="";
+  loadAnswers();
+ }catch(e){
+  error.textContent=e.message;
+ }
+}
+
+async function loadAnswers(){
+ const box=document.getElementById("answers");
+ box.textContent="Cevaplar yükleniyor...";
+
+ try{
+  const response=await fetch("/api/admin");
+  const data=await response.json();
+  if(!response.ok) throw new Error(data.error||"Cevaplar alınamadı");
+
+  box.replaceChildren();
+
+  if(!data.answers.length){
+   box.textContent="Henüz cevap gelmemiş.";
+   return;
+  }
+
+  data.answers.forEach(item=>{
+   const card=document.createElement("div");
+   card.className="answer";
+
+   const question=document.createElement("strong");
+   question.textContent=item.question;
+
+   const answer=document.createElement("p");
+   answer.textContent=item.answer;
+
+   const date=document.createElement("small");
+   date.textContent=item.created_at||"";
+
+   card.append(question,answer,date);
+   box.append(card);
+  });
+ }catch(e){
+  box.textContent=e.message;
+ }
+}
+
+function logout(){
+ document.cookie="admin_session=; Max-Age=0; Path=/api/admin; Secure; SameSite=Strict";
+ document.getElementById("panel").classList.add("hidden");
+ document.getElementById("login").classList.remove("hidden");
+ document.getElementById("error").textContent="";
+}
+
+</script>
+</body>
+</html>
